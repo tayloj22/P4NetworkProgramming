@@ -19,6 +19,7 @@ void error(const char *msg)
 
 typedef struct _ThreadArgs {
 	int clisockfd;
+	char* userName;
 } ThreadArgs;
 
 void* thread_main_recv(void* args)
@@ -49,6 +50,7 @@ void* thread_main_send(void* args)
 	pthread_detach(pthread_self());
 
 	int sockfd = ((ThreadArgs*) args)->clisockfd;
+	char* name = ((ThreadArgs*) args)->userName;
 	free(args);
 
 	// keep sending messages to the server
@@ -100,6 +102,10 @@ int main(int argc, char *argv[])
 	
 	args = (ThreadArgs*) malloc(sizeof(ThreadArgs));
 	args->clisockfd = sockfd;
+	printf("\nPlease enter the username you would like to use (max 20 characters): ");
+	char* nameInput;
+	scanf("%s", nameInput);
+	args->userName = nameInput;
 	pthread_create(&tid1, NULL, thread_main_send, (void*) args);
 
 	args = (ThreadArgs*) malloc(sizeof(ThreadArgs));

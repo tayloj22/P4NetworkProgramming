@@ -18,6 +18,7 @@ void error(const char *msg)
 
 typedef struct _USR {
 	int clisockfd;		// socket file descriptor
+	char* userName;  // user-specified username
 	struct _USR* next;	// for linked list queue
 } USR;
 
@@ -29,10 +30,12 @@ void add_tail(int newclisockfd)
 	if (head == NULL) {
 		head = (USR*) malloc(sizeof(USR));
 		head->clisockfd = newclisockfd;
+		head->userName = "";
 		head->next = NULL;
 		tail = head;
 	} else {
 		tail->next = (USR*) malloc(sizeof(USR));
+		tail->next->userName = "";
 		tail->next->clisockfd = newclisockfd;
 		tail->next->next = NULL;
 		tail = tail->next;
@@ -54,7 +57,8 @@ void broadcast(int fromfd, char* message)
 			char buffer[512];
 
 			// prepare message
-			sprintf(buffer, "[%s]:%s", inet_ntoa(cliaddr.sin_addr), message);
+			memset(buffer, 0, 512);
+			sprintf(buffer, "[%s] %s:%s", inet_ntoa(cliaddr.sin_addr), cur->userName,  message);
 			int nmsg = strlen(buffer);
 
 			// send!
