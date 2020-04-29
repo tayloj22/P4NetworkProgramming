@@ -125,41 +125,51 @@ void* thread_main(void* args)
 	char *userName = ((ThreadArgs*) args)->userName;
 	free(args);
 
-	//-------------------------------
-	// Now, we receive/send messages
-	char buffer[256];
-	int nsen, nrcv;
-
+	char buffer[256];	// Buffer containing messages.
+	int nsen;			// Number of characters sent.
+	int nrcv;			// Number of characters recieved.
+	
+	// Get the message.
+	memset(buffer, 0, 256);
 	nrcv = recv(clisockfd, buffer, 255, 0);
-
-	// If the user enters a blank character, remove from list.
-	if (buffer[0] == 0 || buffer[0] == '\n' || buffer[0] == '\0') {
-		printf("Client deleted:%d\n", clisockfd);
-		remove_client(clisockfd); // FIXME: not tested.
+	if (nrcv < 0) // -1 characters sent means error.
+		error("ERROR recv() failed");
+	if (nrcv == 0) { // 0 characters sent means delete client.
+		printf("Deleting client: %s, %d\n", userName, clisockfd);
+		remove_client(clisockfd);
 		print_client_list();
 	}
 
-	if (nrcv < 0) error("ERROR recv() failed");
-
+	// Continually broadcast and recieve messages.
 	while (nrcv > 0) {
-		// we send the message to everyone except the sender
+
+		// Send the message to all other clients.
 		broadcast(clisockfd, buffer, userName);
 
+		// Recieve the next message.
 		nrcv = recv(clisockfd, buffer, 255, 0);
-		if (nrcv < 0) error("ERROR recv() failed");
+		if (nrcv < 0) // -1 characters sent means error.
+			error("ERROR recv() failed");
+		if (nrcv == 0) { // 0 characters sent means delete client.
+			printf("Deleting client: %s, %d\n", userName, clisockfd);
+			remove_client(clisockfd);
+			print_client_list();
+		}
 	}
-
+	
+	// Close the socketfd of the client.
 	close(clisockfd);
-	//-------------------------------
 
 	return NULL;
 }
 
 int main(int argc, char *argv[])
 {
+	// Create the socket communication line.
 	int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sockfd < 0) error("ERROR opening socket");
 
+	// Configure the server side of socket.
 	struct sockaddr_in serv_addr;
 	socklen_t slen = sizeof(serv_addr);
 	memset((char*) &serv_addr, 0, sizeof(serv_addr));
@@ -167,38 +177,45 @@ int main(int argc, char *argv[])
 	serv_addr.sin_addr.s_addr = INADDR_ANY;	
 	//serv_addr.sin_addr.s_addr = inet_addr("192.168.1.171");	
 	serv_addr.sin_port = htons(PORT_NUM);
-
-	int status = bind(sockfd, 
-			(struct sockaddr*) &serv_addr, slen);
+	
+	// Bind the socket to the address space of serv_addr.
+	int status = bind(sockfd, (struct sockaddr*) &serv_addr, slen);
 	if (status < 0) error("ERROR on binding");
+	// Mark this socket as a passive socket, a socket which accepts
+		// incomming connections, maximum 5.
+	listen(sockfd, 5); 
 
-	listen(sockfd, 5); // maximum number of connections = 5
-
+	// While program exists...
 	while(1) {
+		
+		// Initialize a client side of socket.
 		struct sockaddr_in cli_addr;
 		socklen_t clen = sizeof(cli_addr);
 		int newsockfd = accept(sockfd, 
-			(struct sockaddr *) &cli_addr, &clen);
+				(struct sockaddr *) &cli_addr, &clen);
 		if (newsockfd < 0) error("ERROR on accept");
 
 		printf("Connected: %s\n", inet_ntoa(cli_addr.sin_addr));
-		// add this new client to the client list
-		add_tail(newsockfd, "FIXME"); 
-		// FIXME: somehow we need to add the user name into add_tail.
 		
-		// Print client list
+		// Add this new client to the client list and print the list.
+		// FIXME: somehow get the username from this client.
+		char userName[16] = "abcdefghijklmnop";
+		add_tail(newsockfd, userName);  	
 		print_client_list();
 
-		// prepare ThreadArgs structure to pass client socket
+		printf("server.main: preparing ThreadArgs\n");
+
+		// Prepare ThreadArgs structure to pass client socket.
 		ThreadArgs* args = (ThreadArgs*) malloc(sizeof(ThreadArgs));
 		if (args == NULL) error("ERROR creating thread argument");
-		
 		args->clisockfd = newsockfd;
+		args->userName = userName;
 
+		// Launch the thread to listen for messages from clients.
 		pthread_t tid;
-		if (pthread_create(&tid, NULL, thread_main, (void*) args) != 0) error("ERROR creating a new thread");
+		int r = pthread_create(&tid, NULL, thread_main, (void*) args);
+		if (r != 0) error("ERROR creating a new thread");
 	}
 
 	return 0; 
 }
-
