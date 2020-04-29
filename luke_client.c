@@ -31,24 +31,47 @@ void* thread_main_recv(void* args)
 	
 	// Get the clisockfd from argument of function and release memory.
 	int sockfd = ((ThreadArgs*) args)->clisockfd;
-	char *name = ((ThreadArgs*) args)->userName; //FIXME
+	char *userName = ((ThreadArgs*) args)->userName; // FIXME: userName
 	free(args);
 
-	// Recieve a message from sockfd, the server.
+	// Recieve a raw message from sockfd, the server.
 	char buffer[512];
 	int n;
 	memset(buffer, 0, 512);
 	n = recv(sockfd, buffer, 512, 0);
-	printf("Client.thread_main_recv: nrecv=%d", n);
-	printf("buffer=%s\n", buffer);
+	if (n < 0) error("ERROR recv() failed");
+
+	// Partition the message into its sender and message components.
+	char message[512 - 16];
+	char sender[16];	
+	for (int i = 0; i < 16; i++) { //FIXME: buffer out of bounds.
+		if (i < 16) sender[i] = buffer[i];
+		else message[i] = buffer[i];
+	}
+
+	// Print the message recieved.
+	printf("Client %s aka %d recieved ", userName, sockfd);
+	printf("this message from %s: %s\n", sender, message);
 	
 	// If an error did not occurr with the reciept, recieve again.
 	while (n > 0) {
+
+		// Get the raw message.
 		memset(buffer, 0, 512);
 		n = recv(sockfd, buffer, 512, 0);
 		if (n < 0) error("ERROR recv() failed");
-		printf("Client.thread_main_recv: nrecv=%d", n);
-		printf("buffer=%s\n", buffer);
+
+		// Partition the message.
+		char message[512 - 16];
+		char sender[16];	
+		for (int i = 0; i < 16; i++) { //FIXME: buffer out of bounds.
+			if (i < 16) sender[i] = buffer[i];
+			else message[i] = buffer[i];
+		}
+
+		// Print the message recieved.
+		printf("Client %s aka %d recieved ", userName, sockfd);
+		printf("this message from %s: %s\n", sender, message);
 	}
 
 	return NULL;
@@ -61,15 +84,13 @@ void* thread_main_send(void* args)
 	
 	// Get the clisockfd from argument of function and release memory.
 	int sockfd = ((ThreadArgs*) args)->clisockfd;
-	char *name = ((ThreadArgs*) args)->userName; //FIXME
+	char *userName = ((ThreadArgs*) args)->userName; //FIXME: userName
 	free(args);
 
 	char message[256];
 	char buffer[256 - 16];
 	int n;
-	
-	printf("Client.thread_main_send: username=%s\n", name);
-	
+		
 	// Send messages to sockfd, the server, until an error occurs.
 	while (1) {
 
@@ -80,16 +101,18 @@ void* thread_main_send(void* args)
 		if (strlen(buffer) == 1) buffer[0] = '\0';
 
 		// First 16 characters of message reserved for user name;
-		for (int i = 0; i < 256; i++) 
-			message[i] = i< 16 ? name[i] : buffer[i - 16];
+		for (int i = 0; i < 256; i++) // FIXME: buffer out of bounds.
+			message[i] = i< 16 ? userName[i] : buffer[i - 16];
 
-		printf("Client.thread_main_send: message=%s\n", message);
+		// Print the message recieved.
+		printf("Client %s aka %d is sending ", userName, sockfd);
+		printf("this message: %s\n", message);
 		
 		// Send the message, returns -1 for error else # chars sent.
 		n = send(sockfd, message, strlen(message), 0);
 		if (n < 0) error("ERROR writing to socket");
 		// Break loop if user presses enter (chars sent == 0).
-		if (n == 0) break; //FIXME
+		if (n == 0) break; //FIXME: does this work?
 	}
 
 	return NULL;
@@ -120,29 +143,33 @@ int main(int argc, char *argv[])
 
 	// User name from user, attached to thread args below.
 	char nameInput[20];
-	printf("Enter a (max) twenty character user name for client:\n");
-	memset(nameInput, 0, 20);
-	fgets(nameInput, 19, stdin);
+	printf("Enter a (max) sixteen character user name for client:\n");
+	memset(nameInput, 0, 16);
+	fgets(nameInput, 15, stdin);
 
 	// Threads and thread arguments.
 	pthread_t tid1, tid2;
 	ThreadArgs* args;
 	
+	printf("Client.main: sending args to thread destinations.\n");
+
 	// Establish the arguments and create the thread for sending.
 	args = (ThreadArgs*) malloc(sizeof(ThreadArgs));
 	args->clisockfd = sockfd;
-	args->userName = nameInput; // FIXME
+	args->userName = nameInput; // FIXME: pointer working?
 	pthread_create(&tid1, NULL, thread_main_send, (void*) args);
 
 	// Establish the arguments and create the thread for recieving.
 	args = (ThreadArgs*) malloc(sizeof(ThreadArgs));
 	args->clisockfd = sockfd;
-	args->userName = nameInput; // FIXME
+	args->userName = nameInput; // FIXME: pointer working?
 	pthread_create(&tid2, NULL, thread_main_recv, (void*) args);
 
 	// Parent will wait for sender to finish, ie user stop sending 
 		// messages and disconnect from server.
 	pthread_join(tid1, NULL);
+
+	printf("Client.main: closing the connection.\n");
 
 	// Close the connection.
 	close(sockfd);
