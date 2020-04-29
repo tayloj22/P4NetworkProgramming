@@ -19,7 +19,7 @@ void error(const char *msg)
 
 typedef struct _ThreadArgs {
 	int clisockfd;
-	char* userName;
+	char* name;
 } ThreadArgs;
 
 void* thread_main_recv(void* args)
@@ -48,13 +48,16 @@ void* thread_main_recv(void* args)
 void* thread_main_send(void* args)
 {
 	pthread_detach(pthread_self());
-
+	
+	// create variables from the passed ThreadArgs, then free them
 	int sockfd = ((ThreadArgs*) args)->clisockfd;
-	char* name = ((ThreadArgs*) args)->userName;
+	char userName[16];
+	strcpy(userName, ((ThreadArgs*) args)->name);
 	free(args);
 
 	// keep sending messages to the server
 	char buffer[256];
+	char message[238];
 	int n;
 
 	while (1) {
@@ -62,14 +65,21 @@ void* thread_main_send(void* args)
 		// console or GUI to have a nice input window.
 		printf("\nPlease enter the message: ");
 		memset(buffer, 0, 256);
-		fgets(buffer, 255, stdin);
+		// create separate message buffer with user input
+		memset(message, 0, 238);
+		fgets(message, 237, stdin);
+		// concatenate the username, a separator, and the message to create the buffer
+		strcat(buffer, userName);
+		strcat(buffer, ": ");
+		strcat(buffer, message);
 
-		if (strlen(buffer) == 1) buffer[0] = '\0';
+
+		if (strlen(message) == 1) message[0] = '\0';
 
 		n = send(sockfd, buffer, strlen(buffer), 0);
 		if (n < 0) error("ERROR writing to socket");
 
-		if (n == 0) break; // we stop transmission when user type empty string
+		if (message[0] == '\0') break; // we stop transmission when user type empty string
 	}
 
 	return NULL;
@@ -95,6 +105,16 @@ int main(int argc, char *argv[])
 			(struct sockaddr *) &serv_addr, slen);
 	if (status < 0) error("ERROR connecting");
 
+	// Prompt the user to create a username which will be used as args
+	char userName[16];
+	printf("Please create a username of max 16 characters.\n");
+	fgets(userName, 16, stdin);
+	// Strip the newline character
+	strtok(userName, "\n");
+	// Flush the standard input
+	fflush(stdin);
+
+
 	pthread_t tid1;
 	pthread_t tid2;
 
@@ -102,14 +122,12 @@ int main(int argc, char *argv[])
 	
 	args = (ThreadArgs*) malloc(sizeof(ThreadArgs));
 	args->clisockfd = sockfd;
-	printf("\nPlease enter the username you would like to use (max 20 characters): ");
-	char* nameInput;
-	scanf("%s", nameInput);
-	args->userName = nameInput;
+	args->name = userName;
 	pthread_create(&tid1, NULL, thread_main_send, (void*) args);
 
 	args = (ThreadArgs*) malloc(sizeof(ThreadArgs));
 	args->clisockfd = sockfd;
+	args->name = userName;
 	pthread_create(&tid2, NULL, thread_main_recv, (void*) args);
 
 	// parent will wait for sender to finish (= user stop sending message and disconnect from server)
