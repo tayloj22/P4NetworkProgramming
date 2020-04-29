@@ -33,14 +33,13 @@ void* thread_main_recv(void* args)
 	char buffer[512];
 	int n;
 
-	n = recv(sockfd, buffer, 512, 0);
-	while (n > 0) {
+	do {
 		memset(buffer, 0, 512);
 		n = recv(sockfd, buffer, 512, 0);
 		if (n < 0) error("ERROR recv() failed");
 
 		printf("\n%s\n", buffer);
-	}
+	} while (n > 0); 
 
 	return NULL;
 }
@@ -73,13 +72,13 @@ void* thread_main_send(void* args)
 		strcat(buffer, ": ");
 		strcat(buffer, message);
 
-
+		// We stop transmission once the user presses enter with no input
 		if (strlen(message) == 1) message[0] = '\0';
-
+		if (message[0] == '\0') break;
+		
 		n = send(sockfd, buffer, strlen(buffer), 0);
 		if (n < 0) error("ERROR writing to socket");
 
-		if (message[0] == '\0') break; // we stop transmission when user type empty string
 	}
 
 	return NULL;
@@ -137,4 +136,3 @@ int main(int argc, char *argv[])
 
 	return 0;
 }
-
