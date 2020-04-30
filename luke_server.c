@@ -31,13 +31,13 @@ USR *tail = NULL;
 // Function to add a client to the tail of the list.
 void add_tail(int newclisockfd)
 {
-	if (head == NULL) {
+	if (head == NULL) { // Add to head of list.
 		head = (USR*) malloc(sizeof(USR));
 		head->clisockfd = newclisockfd;
 		head->next = NULL;
 		tail = head;
 	} 
-	else {
+	else { //Add to tail of list.
 		tail->next = (USR*) malloc(sizeof(USR));
 		tail->next->clisockfd = newclisockfd;
 		tail->next->next = NULL;
@@ -62,22 +62,19 @@ void delete_client(int clisockfd)
 {	
 	USR *temp = head;
 	USR *prev;
-	
 	// Delete from head.
 	if (temp != NULL && temp->clisockfd == clisockfd) {
 		head = temp->next;
 		free(temp);
 		return;
 	}
-
 	// Locate from body.
 	while (temp != NULL && temp->clisockfd != clisockfd) {
 		prev = temp;
 		temp = temp->next;
 	}
+	// Delete if found, modify tail if needed.
 	if (temp == NULL) return;
-	
-	// Delete from body or tail.
 	prev->next = temp->next;
 	if (temp == tail) tail = prev;
 	free(temp);
@@ -93,7 +90,9 @@ void print_client_list() {
 	}
 }
 
-// Broadcast a message from one client to all others.
+// Broadcast a message from one client to all other clients.
+	// fromfd -- clisockfd of sender client.
+	// message -- message of sender client.
 void broadcast(int fromfd, char* message)
 {
 	// Figure out sender address.
@@ -102,19 +101,28 @@ void broadcast(int fromfd, char* message)
 	if (getpeername(fromfd, (struct sockaddr*)&cliaddr, &clen) < 0) 
 		error("ERROR Unknown sender!");
 
-	// traverse through all connected clients
+	// Traverse through all connected clients.
 	USR* cur = head;
 	while (cur != NULL) {
-		// check if cur is not the one who sent the message
-		if (cur->clisockfd != fromfd) {
-			char buffer[512];
 
-			// prepare message
+		if (cur->clisockfd != fromfd) { // Non-sender clients.
+
+			char buffer[512];
+			memset(buffer, 0, 512);
+
+			// Prepare message: attatch an additional 10 char in front.
+			fflush(stdout);
+			fflush(stdin);
 			sprintf(buffer, "[%s]:%s", 
 					inet_ntoa(cliaddr.sin_addr), message);
-			int nmsg = strlen(buffer);
+			
+			printf("Server sending a message to a client:");
+			for (int i = 0; i < strlen(buffer); i++)
+				printf("%c", buffer[i]);
+			printf(":\n");
 
-			// send!
+			// Send message.
+			int nmsg = strlen(buffer);
 			int nsen = send(cur->clisockfd, buffer, nmsg, 0);
 			if (nsen != nmsg) error("ERROR send() failed");
 		}
@@ -123,11 +131,15 @@ void broadcast(int fromfd, char* message)
 	}
 }
 
+// Arguments to pass to threads.
 typedef struct _ThreadArgs {
 	int clisockfd;
 	char *userName;
 } ThreadArgs;
 
+// Listen to a particular client and call broadcast as needed.
+	// args - ThreadArgs containing the clisockfd of the particular
+		// client this thread is interacting with.
 void* thread_main(void* args)
 {
 	// Make sure thread resources are deallocated upon return.
@@ -137,50 +149,38 @@ void* thread_main(void* args)
 	int clisockfd = ((ThreadArgs*) args)->clisockfd;
 	free(args);
 
-	char buffer[256];	// Buffer with characters of messages.
+	char buffer[256];	// Memory for sending/recieving.
 	int nsen, nrcv;		// Number of chars sent/recieved.
 
-	// First recieve the user name from the client.
+	// Recieve a message.
 	nrcv = recv(clisockfd, buffer, 255, 0);
 	if (nrcv < 0) error("ERROR recv() failed");
 	
-	// Attatch username to the correct USR in list.
-	char c[256];
-	strcpy(c, buffer);
-	attatch_username(clisockfd, c);
+	printf("Server recieved the following message:");
+	for (int i = 0; i < nrcv; i++) 
+		printf("%c", buffer[i]);
+	printf(": \n");
 
-	// Print the full client list.
-	print_client_list();
-
-	// Now search for messages sent.
+	// Broadcast the message and recieve another message.
 	while (nrcv > 0) {
-
-		// Get a message and broadcast it to all clients.
-		memset(buffer, 0, 256);
+		broadcast(clisockfd, buffer);
 		nrcv = recv(clisockfd, buffer, 255, 0);
 		if (nrcv < 0) error("ERROR recv() failed");
-		broadcast(clisockfd, buffer);
-		
-		printf("Testing for deletion\n");
-		// We delete the client from list if no message sent.
-		if (nrcv == 0 || buffer[0] == '\0' || buffer[0] == '\n') {
-			printf("About to delete a client\n");
-			delete_client(clisockfd);
-			print_client_list();
-		}
 	}
-
+	
+	// Close the connection with this client.
 	close(clisockfd);
-	//-------------------------------
 
 	return NULL;
 }
 
 int main(int argc, char *argv[])
 {
+	// Create the socket for communication.
 	int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sockfd < 0) error("ERROR opening socket");
-
+	
+	// Configure the socket.
 	struct sockaddr_in serv_addr;
 	socklen_t slen = sizeof(serv_addr);
 	memset((char*) &serv_addr, 0, sizeof(serv_addr));
@@ -189,32 +189,38 @@ int main(int argc, char *argv[])
 	//serv_addr.sin_addr.s_addr = inet_addr("192.168.1.171");	
 	serv_addr.sin_port = htons(PORT_NUM);
 
-	int status = bind(sockfd, 
-			(struct sockaddr*) &serv_addr, slen);
+	// Bind the socket to address space.
+	int status = bind(sockfd, (struct sockaddr*) &serv_addr, slen);
 	if (status < 0) error("ERROR on binding");
+	// This socket will be used to listen to a maximum of 5 clients.
+	listen(sockfd, 5);
 
-	listen(sockfd, 5); // maximum number of connections = 5
-
+	// While server exists.
 	while(1) {
+
+		// Listen for and accept clients.
 		struct sockaddr_in cli_addr;
 		socklen_t clen = sizeof(cli_addr);
 		int newsockfd = accept(sockfd, 
-			(struct sockaddr *) &cli_addr, &clen);
+				(struct sockaddr *) &cli_addr, &clen);
 		if (newsockfd < 0) error("ERROR on accept");
 
+		// Add client to tail of list and print list.
 		printf("Connected: %s\n", inet_ntoa(cli_addr.sin_addr));
-		add_tail(newsockfd); // add this new client to the client list
+		add_tail(newsockfd);
+		print_client_list();
 
-		// prepare ThreadArgs structure to pass client socket
+		// Prepare ThreadArgs structure to pass client socket.
 		ThreadArgs* args = (ThreadArgs*) malloc(sizeof(ThreadArgs));
 		if (args == NULL) error("ERROR creating thread argument");
-		
 		args->clisockfd = newsockfd;
-
+		
+		// Create and launch the thread for communication with client.
 		pthread_t tid;
-		if (pthread_create(&tid, NULL, thread_main, (void*) args) != 0) error("ERROR creating a new thread");
+		if (pthread_create(&tid, NULL, thread_main, (void*) args) != 0)
+			error("ERROR creating a new thread");
 	}
 
-	return 0; 
+	return 0;  
 }
 
