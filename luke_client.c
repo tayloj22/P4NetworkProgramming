@@ -38,7 +38,6 @@ void* thread_main_recv(void* args)
 
 	char buffer[512];		// Memory space for message and sender.
 	char message[512 - 16];	// Memory for the message.
-	char ipsender[12];		// Sender of message's ip.
 	char sender[16];		// Sender of message.
 	int n = 1;				// Number of characters recieved.
 
@@ -54,23 +53,15 @@ void* thread_main_recv(void* args)
 		n = recv(sockfd, buffer, 512, 0);
 		if (n < 0) error("ERROR recv() failed");
 		
-		// Extract the sender and message from the buffer.
-		for (int i = 0; i < 12; i++) {
-			ipsender[i] = buffer[i];
-			//printf("%d, %c\n", i, buffer[i+12]);
-		}
-		for (int i = 0; i < 16 && buffer[i+12] != '\0'; i++) { 
-			sender[i] = buffer[i + 12];
-			//printf("%d, %c\n", i, buffer[i+12]);
-		}
-		for (int i = 0; i < 512 && buffer[i] != 0; i++)
-			message[i] = buffer[i + 16 + 12];
-
-		// Print the message.
+		// Extract the message from the buffer.
+		strcpy(message, buffer + 16);
+		
+		// Print the message and the sender.
 		printf("\nClient has receieved a message.");
-		printf("\n\tIP: %s", ipsender);
-		printf("\n\tUsername: %s", sender);
-		printf(":\n\tMessage: %s", message);
+		printf("\n\tRaw Buffer: %s", buffer);
+		printf("\n\tUsername: ");
+		for (int i = 0; i < 16; i++) printf("%c", buffer[i]);
+		printf("\n\tMessage: %s", message);
 		printf("\n");	
 	}
 

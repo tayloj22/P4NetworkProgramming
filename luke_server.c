@@ -106,22 +106,19 @@ void broadcast(int fromfd, char* message)
 	while (cur != NULL) {
 
 		if (cur->clisockfd != fromfd) { // Non-sender clients.
-
+			// Prepare the message.
 			char buffer[512];
 			memset(buffer, 0, 512);
+			for (int i = 0; i < strlen(message); i++) 
+				buffer[i] = message[i];
 
-			// Prepare message: attatch an additional 10 char in front.
-			fflush(stdout);
-			fflush(stdin);
-			sprintf(buffer, "[%s]:%s", 
-					inet_ntoa(cliaddr.sin_addr), message);
-			
+			// Testing: print the message.
 			printf("Server sending a message to a client:");
 			for (int i = 0; i < strlen(buffer); i++)
 				printf("%c", buffer[i]);
 			printf(":\n");
 
-			// Send message.
+			// Send the message.
 			int nmsg = strlen(buffer);
 			int nsen = send(cur->clisockfd, buffer, nmsg, 0);
 			if (nsen != nmsg) error("ERROR send() failed");
