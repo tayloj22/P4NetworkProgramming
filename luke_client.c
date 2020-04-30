@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 #include <netdb.h> 
 #include <pthread.h>
+#include <errno.h>
 
 #define PORT_NUM 1004
 
@@ -51,7 +52,11 @@ void* thread_main_recv(void* args)
 
 		// Recieve the raw message into buffer.
 		n = recv(sockfd, buffer, 512, 0);
-		if (n < 0) error("ERROR recv() failed");
+		if (n < 0) {
+			if (errno == EWOULDBLOCK) printf("Ignoring EWOULDBLOCK\n");
+			else if (errno == EAGAIN) printf("Ignoring EAGAIN\n");
+			else error("ERROR recv() failed");
+		}
 		
 		// Extract the message from the buffer.
 		strcpy(message, buffer + 16);
@@ -115,9 +120,12 @@ void* thread_main_send(void* args)
 		
 		// Send the buffer.
 		n = send(sockfd, buffer, strlen(buffer), 0);
-		if (n < 0) error("ERROR writing to socket");
+		if (n < 0) {
+			if (errno == EWOULDBLOCK) printf("Ignoring EWOULDBLOCK\n");
+			else if (errno == EAGAIN) printf("Ignoring EAGAIN\n");
+			else error("Error writing to socket.");
+		}
 	}
-
 	return NULL;
 }
 

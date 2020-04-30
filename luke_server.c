@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <errno.h>
 
 #define PORT_NUM 1004
 
@@ -151,8 +152,11 @@ void* thread_main(void* args)
 
 	// Recieve a message.
 	nrcv = recv(clisockfd, buffer, 255, 0);
-	if (nrcv < 0) error("ERROR recv() failed");
-	
+	if (nrcv < 0) {
+		if (errno == EWOULDBLOCK) printf("Ignoring EWOULDBLOCK\n");
+		else if (errno == EAGAIN) printf("Ignoring EAGAIN\n");
+		else error("ERROR recv() failed");
+	}
 	printf("Server recieved the following message:");
 	for (int i = 0; i < nrcv; i++) 
 		printf("%c", buffer[i]);
@@ -162,7 +166,11 @@ void* thread_main(void* args)
 	while (nrcv > 0) {
 		broadcast(clisockfd, buffer);
 		nrcv = recv(clisockfd, buffer, 255, 0);
-		if (nrcv < 0) error("ERROR recv() failed");
+		if (nrcv < 0) {
+			if (errno == EWOULDBLOCK) printf("Ignoring EWOULDBLOCK\n");
+			else if (errno == EAGAIN) printf("Ignoring EAGAIN\n");
+			else error("ERROR recv() failed");
+		}
 	}
 	
 	// Close the connection with this client.
