@@ -153,6 +153,7 @@ void* thread_main(void* args)
 	// Recieve a message.
 	nrcv = recv(clisockfd, buffer, 255, 0);
 	if (nrcv < 0) {
+		printf("Encountered and Error\n");
 		if (errno == EWOULDBLOCK) printf("Ignoring EWOULDBLOCK\n");
 		else if (errno == EAGAIN) printf("Ignoring EAGAIN\n");
 		else error("ERROR recv() failed");
@@ -167,6 +168,7 @@ void* thread_main(void* args)
 		broadcast(clisockfd, buffer);
 		nrcv = recv(clisockfd, buffer, 255, 0);
 		if (nrcv < 0) {
+			printf("Encountered and Error\n");
 			if (errno == EWOULDBLOCK) printf("Ignoring EWOULDBLOCK\n");
 			else if (errno == EAGAIN) printf("Ignoring EAGAIN\n");
 			else error("ERROR recv() failed");
@@ -183,8 +185,11 @@ int main(int argc, char *argv[])
 {
 	// Create the socket for communication.
 	int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	if (sockfd < 0) error("ERROR opening socket");
-	
+	if (sockfd < 0) {
+		printf("Encountered an error\n");
+		error("ERROR opening socket");
+	}
+
 	// Configure the socket.
 	struct sockaddr_in serv_addr;
 	socklen_t slen = sizeof(serv_addr);
@@ -208,7 +213,10 @@ int main(int argc, char *argv[])
 		socklen_t clen = sizeof(cli_addr);
 		int newsockfd = accept(sockfd, 
 				(struct sockaddr *) &cli_addr, &clen);
-		if (newsockfd < 0) error("ERROR on accept");
+		if (newsockfd < 0) {
+			printf("Encountered an error\n");
+			error("ERROR on accept");
+		}
 
 		// Add client to tail of list and print list.
 		printf("Connected: %s\n", inet_ntoa(cli_addr.sin_addr));

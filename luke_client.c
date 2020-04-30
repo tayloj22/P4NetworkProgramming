@@ -55,7 +55,11 @@ void* thread_main_recv(void* args)
 		if (n < 0) {
 			if (errno == EWOULDBLOCK) printf("Ignoring EWOULDBLOCK\n");
 			else if (errno == EAGAIN) printf("Ignoring EAGAIN\n");
-			else error("ERROR recv() failed");
+			else if (errno == EBADF) printf("Detetc bad fd"
+			else {
+				printf("Encountered an error\n");
+				error("ERROR recv() failed");
+			}
 		}
 		
 		// Extract the message from the buffer.
@@ -123,7 +127,10 @@ void* thread_main_send(void* args)
 		if (n < 0) {
 			if (errno == EWOULDBLOCK) printf("Ignoring EWOULDBLOCK\n");
 			else if (errno == EAGAIN) printf("Ignoring EAGAIN\n");
-			else error("Error writing to socket.");
+			else {
+				printf("Encountered an error\n");
+				error("Error writing to socket.");
+			}
 		}
 	}
 	return NULL;
