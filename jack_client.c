@@ -151,11 +151,13 @@ int main(int argc, char *argv[])
 	printf("Try connecting to %s...\n", inet_ntoa(serv_addr.sin_addr));
 	int status = connect(sockfd, (struct sockaddr *) &serv_addr, slen);
 	if (status < 0) error("ERROR connecting");
-
+	
 	// Get username from user.
-	printf("Enter username, max 16 characters.\n");
-	fgets(myusername, 15, stdin);
-	strtok(myusername, "\n");
+	char userinput[16];
+	printf("Enter username, max 15 characters.\n");
+	fgets(userinput, 17, stdin);
+	strtok(userinput, "\n");
+	strcpy(myusername, userinput);
 	fflush(stdin);
 
 	pthread_t tid1;		// Thread for sending messages.
