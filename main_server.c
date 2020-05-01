@@ -44,6 +44,56 @@ void add_tail(int newclisockfd, char* newname)
 	}
 }
 
+// LUKE
+// Delete a client from the list and return its nickname.
+void delete_client(int clisockfd) 
+{	
+	USR *temp = head;
+	USR *prev;
+	// Delete from head.
+	if (temp != NULL && temp->clisockfd == clisockfd) {
+		head = temp->next;
+		free(temp);
+		return;
+	}
+	// Locate from body.
+	while (temp != NULL && temp->clisockfd != clisockfd) {
+		prev = temp;
+		temp = temp->next;
+	}
+	// Delete if found, modify tail if needed.
+	if (temp == NULL) return;
+	prev->next = temp->next;
+	if (temp == tail) tail = prev;
+	free(temp);
+	return;
+}
+
+// LUKE
+// Jack, I moved ur function up here because I needed to be declared
+	// higher up and I also slightly modified the formatting of output.
+void print_list() {
+	printf("-------------------------------------------------------------------------\n");
+	printf("All currently connected clients are listed below:\n");
+	printf("[File Descriptor] : [username]\n");
+	USR* cur = head;
+	while (cur != NULL) {
+		printf("\t[%d] : [%s]\n", cur->clisockfd, cur->username);
+		cur = cur->next;
+	}
+	printf("-------------------------------------------------------------------------\n");
+	
+	return;
+}
+
+// LUKE
+// Call function to delete client from list and print new client list.
+void delete_routine(int clisockfd) {
+	delete_client(clisockfd);
+	printf("A client chose to disconnect.\n");
+	print_list();
+}
+
 void broadcast(int fromfd,  char* message)
 {
 	// figure out sender address
@@ -121,25 +171,16 @@ void* thread_main(void* args)
 		if (nrcv < 0) error("ERROR recv() failed");
 	}
 
+	// LUKE
+	// Delete the client from the list and print.
+	delete_routine(clisockfd);
+
 	close(clisockfd);
 	//-------------------------------
 
 	return NULL;
 }
 
-void print_list() {
-	printf("-------------------------------------------------------------------------\n");
-	printf("All currently connected clients are listed below:\n");
-
-	USR* cur = head;
-	while (cur != NULL) {
-		printf("\t[%d]%s\n", cur->clisockfd, cur->username);
-		cur = cur->next;
-	}
-	printf("-------------------------------------------------------------------------\n");
-	
-	return;
-}
 
 int main(int argc, char *argv[])
 {
