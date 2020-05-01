@@ -53,13 +53,8 @@ void* thread_main_recv(void* args)
 		// Recieve the raw message into buffer.
 		n = recv(sockfd, buffer, 512, 0);
 		if (n < 0) {
-			if (errno == EWOULDBLOCK) printf("Ignoring EWOULDBLOCK\n");
-			else if (errno == EAGAIN) printf("Ignoring EAGAIN\n");
-			else if (errno == EBADF) printf("Detetc bad fd"
-			else {
-				printf("Encountered an error\n");
-				error("ERROR recv() failed");
-			}
+			printf("%d\n", errno);
+			error("ERROR recv() failed");
 		}
 		
 		// Extract the message from the buffer.
@@ -69,8 +64,15 @@ void* thread_main_recv(void* args)
 		printf("\nClient has receieved a message.");
 		printf("\n\tRaw Buffer: %s", buffer);
 		printf("\n\tUsername: ");
-		for (int i = 0; i < 16; i++) printf("%c", buffer[i]);
-		printf("\n\tMessage: %s", message);
+		int i = 0;
+		for (i = 0; i < strlen(buffer); i++) {
+			if (buffer[i] == ':') {
+				printf("\n\tMessage: ");
+			}
+			else {
+				printf("%c", buffer[i]);
+			}
+		}
 		printf("\n");	
 	}
 
@@ -87,31 +89,32 @@ void* thread_main_send(void* args)
 	free(args);
 
 	char buffer[256];		// Memory for username + message to send.
-	char message[256 - 16];	// Memory for the actual message.
+	char message[256 - 16 - 1];	// Memory for the actual message.
 	char username[16];		// Copy of myusername.
 	int n;					// Number of characters sent/recieved.
 
 	// Use a copy of myusername for all of this stuff.
 	strcpy(username, myusername);
 
-	// Fill first 16 bits of buffer with username.
+	// Fill first strlen(username) indices of buffer with username.
 	for (int i = 0; i < strlen(username); i++)
 		buffer[i] = myusername[i];
-	for (int i = strlen(username); i < 16; i++)
-		buffer[i] = '\0';
+	// Add a colon after the username
+	buffer[strlen(username)] = ':';
 
 	while (1) {
 		// Always clear the last bits of buffer and message.
 		memset(buffer + 16, 0, 256 - 16);
-		memset(message, 0, 238);
+		memset(message, 0, 256 - 16);
 			
 		// Get the message.
 		printf("Please enter the message: ");
-		scanf("%s", message);
+		fgets(message, 255 - 16 - 1, stdin);
+		strtok(message, "\n");
 
 		// Add the message to the buffer.
 		for (int i = 0; i < strlen(message); i++) 
-			buffer[i + 16] = message[i];
+			buffer[i + strlen(username) + 1] = message[i];
 	
 		// Testing: printing the buffer
 		printf("Everything I'm going to send: ");
@@ -124,15 +127,9 @@ void* thread_main_send(void* args)
 		
 		// Send the buffer.
 		n = send(sockfd, buffer, strlen(buffer), 0);
-		if (n < 0) {
-			if (errno == EWOULDBLOCK) printf("Ignoring EWOULDBLOCK\n");
-			else if (errno == EAGAIN) printf("Ignoring EAGAIN\n");
-			else {
-				printf("Encountered an error\n");
-				error("Error writing to socket.");
-			}
-		}
+		if (n < 0) error("ERROR writing to socket");
 	}
+
 	return NULL;
 }
 
@@ -157,10 +154,14 @@ int main(int argc, char *argv[])
 	printf("Try connecting to %s...\n", inet_ntoa(serv_addr.sin_addr));
 	int status = connect(sockfd, (struct sockaddr *) &serv_addr, slen);
 	if (status < 0) error("ERROR connecting");
-
+	
 	// Get username from user.
-	printf("Enter username, max 16 characters.\n");
-	scanf("%s", myusername);
+	char userinput[16];
+	printf("Enter username, max 15 characters.\n");
+	fgets(userinput, 17, stdin);
+	strtok(userinput, "\n");
+	strcpy(myusername, userinput);
+	fflush(stdin);
 
 	pthread_t tid1;		// Thread for sending messages.
 	pthread_t tid2;		// Thread for recieving messages.
