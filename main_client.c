@@ -60,7 +60,6 @@ void* thread_main_send(void* args)
 		printf("\nYou may now enter a message to the other users. ");
 		printf("Sending a blank message will quit.\n");
 		memset(buffer, 0, 256);
-		fflush(stdout);
 		fgets(buffer, 255, stdin);
 		fflush(stdin);
 
@@ -100,7 +99,6 @@ int main(int argc, char *argv[])
 	char userinput[17];
 	char username[16];
 	printf("Provide a username to be identified as (max 15 characters).\n");
-	fflush(stdout);
 	fgets(userinput, 17, stdin);
 	fflush(stdin);
 	for (int i = 0; i < strlen(userinput); i++) {

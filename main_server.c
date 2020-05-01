@@ -174,8 +174,6 @@ int main(int argc, char *argv[])
 		//     with its sockfd and username
 		char username[16];
 		memset(username, 0, 16);
-		fflush(stdin);
-		fflush(stdout);
 		int nrcv = recv(newsockfd, username, 16, 0);
 		if (nrcv < 0) {
 			error("ERROR recv() failed");
