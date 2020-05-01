@@ -1,0 +1,16 @@
+Currently we have implemented:
+	Connecting multiple client
+
+	Broadcasting messages
+
+	Usernames and attaching them with messages
+
+	Printing the client list
+
+
+Some things to note:
+	Always enter the username of the user you are currently connecting before attempting to connect another user.  The server uses recv to obtain the username from the client, so other users should not send messages during this waiting period.
+	
+
+Next thing I plan to implement:
+	I would like to implement colors by attaching a random, unique color code to the linked list entry associated with the client.  Then we would just have to access the color code within the broadcast method.
