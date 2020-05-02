@@ -11,6 +11,15 @@
 
 #define PORT_NUM 1004
 
+#define RESET "\x1B[0m"
+#define KRED "\x1B[31m"
+#define KGRN "\x1B[32m"
+#define KYEL "\x1B[33m"
+#define KBLU "\x1b[34m"
+#define KMAG "\x1b[35m"
+#define KCYN "\x1b[36m"
+#define KWHT "\x1B[37m"
+
 // LUKE
 #define CHAT_ROOM_NUM 5
 #define CLIENTS_PER_ROOM 6
@@ -28,6 +37,7 @@ void error(const char *msg)
 typedef struct _USR {
 	int clisockfd;		// socket file descriptor
 	char* username;     // client username
+	char* color;	    // client color
 	struct _USR* next;	// for linked list queue
 	// LUKE
 	int chatroom;	// -1 if not in a room, else the room number.
@@ -36,7 +46,7 @@ typedef struct _USR {
 USR *head = NULL;
 USR *tail = NULL;
 
-void add_tail(int newclisockfd, char* newname, int chat_status)
+void add_tail(int newclisockfd, char* newname, char* newcolor, int chat_status)
 {
 	if (head == NULL) {
 		head = (USR*) malloc(sizeof(USR));
@@ -46,6 +56,10 @@ void add_tail(int newclisockfd, char* newname, int chat_status)
 
 		head->username = (char*) malloc(strlen(newname) * sizeof(char));
 		strcpy(head->username, newname);
+
+		head->color = (char*) malloc(strlen(newcolor) * sizeof(char));
+		strcpy(head->color, newcolor);
+		
 		head->next = NULL;
 		tail = head;
 	} else {
@@ -56,6 +70,10 @@ void add_tail(int newclisockfd, char* newname, int chat_status)
 		
 		tail->next->username = (char*) malloc(strlen(newname) * sizeof(char));
 		strcpy(tail->next->username, newname);
+
+		tail->next->color = (char*) malloc(strlen(newcolor) * sizeof(char));
+		strcpy(tail->next->color, newcolor);
+
 		tail->next->next = NULL;
 		tail = tail->next;
 	}
@@ -92,7 +110,7 @@ void delete_client(int clisockfd)
 void print_list() {
 	printf("-------------------------------------------------------------------------\n");
 	printf("All currently connected clients are listed below:\n");
-	printf("\t[FD] : [username]\n");
+	printf("Format is [FD] : [username]\n");
 	USR* cur = head;
 	while (cur != NULL) {
 		printf("\t[%d] : [%s]\n", cur->clisockfd, cur->username);
@@ -118,8 +136,9 @@ void broadcast(int fromfd,  char* message)
 	socklen_t clen = sizeof(cliaddr);
 	if (getpeername(fromfd, (struct sockaddr*)&cliaddr, &clen) < 0) error("ERROR Unknown sender!");
 
-	// find the username associated with the sender
+	// find the username and color associated with the sender
 	char* username;
+	char* color;
 	int userfound = 0;
 	USR* cur = head;
 	while (cur != NULL) {
@@ -127,6 +146,7 @@ void broadcast(int fromfd,  char* message)
 		if (cur->clisockfd == fromfd) {
 			// set username if found
 			username = cur->username;
+			color = cur->color;
 			userfound = 1;
 		}
 		cur = cur->next;
@@ -143,7 +163,7 @@ void broadcast(int fromfd,  char* message)
 			char buffer[512];
 
 			// prepare message
-			sprintf(buffer, "[%s] : [%s] : %s", username, inet_ntoa(cliaddr.sin_addr), message);
+			sprintf(buffer, "%s%s [%s]:%s" RESET, color, username, inet_ntoa(cliaddr.sin_addr), message);
 			int nmsg = strlen(buffer);
 
 			// send!
@@ -158,6 +178,7 @@ void broadcast(int fromfd,  char* message)
 typedef struct _ThreadArgs {
 	int clisockfd;
 	char* username;
+	char* color;
 	// LUKE
 	int chat_status;
 } ThreadArgs;
@@ -198,8 +219,9 @@ void chat_room_broadcast(int fromfd, char *message, int room)
 	socklen_t clen = sizeof(cliaddr);
 	if (getpeername(fromfd, (struct sockaddr*)&cliaddr, &clen) < 0) error("ERROR Unknown sender!");
 
-	// find the username associated with the sender
+	// find the username and color associated with the sender
 	char* username;
+	char* color;
 	int userfound = 0;
 	USR* cur = head;
 	while (cur != NULL) {
@@ -207,6 +229,7 @@ void chat_room_broadcast(int fromfd, char *message, int room)
 		if (cur->clisockfd == fromfd) {
 			// set username if found
 			username = cur->username;
+			color = cur->color;
 			userfound = 1;
 		}
 		cur = cur->next;
@@ -224,7 +247,7 @@ void chat_room_broadcast(int fromfd, char *message, int room)
 			char buffer[512];
 
 			// prepare message
-			sprintf(buffer, "[room %d] : [%s] : [%s] : %s", room, username, inet_ntoa(cliaddr.sin_addr), message);
+			sprintf(buffer, "%s[room %d] : [%s] : [%s] : %s" RESET, color, room, username, inet_ntoa(cliaddr.sin_addr), message);
 			int nmsg = strlen(buffer);
 
 			// send!
@@ -300,6 +323,7 @@ void* thread_main(void* args)
 	// get socket descriptor from argument
 	int clisockfd = ((ThreadArgs*) args)->clisockfd;
 	char* username = ((ThreadArgs*) args)->username;
+	char* color = ((ThreadArgs*) args)->color;
 	// LUKE
 	// Perform the broadcast routine dictated by chat_status:
 		// -1 for broadcast to all, else a chatroom number.
@@ -341,6 +365,18 @@ void* thread_main(void* args)
 
 int main(int argc, char *argv[])
 {
+	// Create char* array of all possible color choices
+	char* colorcodes[] = {
+		KRED,
+		KGRN,
+		KYEL,
+		KBLU,
+		KMAG,
+		KCYN,
+		KWHT,
+	};
+	int colorchoice = 0;
+
 	int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sockfd < 0) error("ERROR opening socket");
 
@@ -382,6 +418,7 @@ int main(int argc, char *argv[])
 		
 		args->clisockfd = newsockfd;
 		args->username = username;
+		args->color = colorcodes[colorchoice];
 		
 		// LUKE
 		// Complex communication procedure with client to determine chatroom.
@@ -391,7 +428,8 @@ int main(int argc, char *argv[])
 		args->chat_status = chat_status;
 		
 		// Add to the tail of list and print.
-		add_tail(newsockfd, username, chat_status);
+		add_tail(newsockfd, username, colorcodes[colorchoice % 7], chat_status);
+		colorchoice++;
 		print_list();
 
 		pthread_t tid;

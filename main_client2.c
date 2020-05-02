@@ -148,7 +148,7 @@ void address_chat_room(char *arg3, int sockfd)
 
 void* thread_main_recv(void* args)
 {
-	pthread_detach(pthread_self());
+	//pthread_detach(pthread_self());
 
 	int sockfd = ((ThreadArgs*) args)->clisockfd;
 	free(args);
@@ -174,7 +174,7 @@ void* thread_main_recv(void* args)
 
 void* thread_main_send(void* args)
 {
-	pthread_detach(pthread_self());
+	//pthread_detach(pthread_self());
 
 	int sockfd = ((ThreadArgs*) args)->clisockfd;
 	free(args);

@@ -89,7 +89,7 @@ void delete_client(int clisockfd)
 void print_list() {
 	printf("-------------------------------------------------------------------------\n");
 	printf("All currently connected clients are listed below:\n");
-	printf("[File Descriptor] : [username]\n");
+	printf("Format is [File Descriptor] : [username]\n");
 	USR* cur = head;
 	while (cur != NULL) {
 		printf("\t[%d] : [%s]\n", cur->clisockfd, cur->username);
@@ -168,6 +168,7 @@ void* thread_main(void* args)
 	// get socket descriptor from argument
 	int clisockfd = ((ThreadArgs*) args)->clisockfd;
 	char* username = ((ThreadArgs*) args)->username;
+	char* color = ((ThreadArgs*) args)->color;
 	free(args);
 
 	//-------------------------------
