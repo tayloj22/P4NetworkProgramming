@@ -23,7 +23,7 @@ typedef struct _ThreadArgs {
 
 void* thread_main_recv(void* args)
 {
-	pthread_detach(pthread_self());
+	//pthread_detach(pthread_self());
 
 	int sockfd = ((ThreadArgs*) args)->clisockfd;
 	free(args);
@@ -46,7 +46,7 @@ void* thread_main_recv(void* args)
 
 void* thread_main_send(void* args)
 {
-	pthread_detach(pthread_self());
+	//pthread_detach(pthread_self());
 
 	int sockfd = ((ThreadArgs*) args)->clisockfd;
 	free(args);

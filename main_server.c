@@ -10,6 +10,15 @@
 
 #define PORT_NUM 1004
 
+#define RESET "\x1B[0m"
+#define KRED "\x1B[31m"
+#define KGRN "\x1B[32m"
+#define KYEL "\x1B[33m"
+#define KBLU "\x1b[34m"
+#define KMAG "\x1b[35m"
+#define KCYN "\x1b[36m"
+#define KWHT "\x1B[37m"
+
 void error(const char *msg)
 {
 	perror(msg);
@@ -19,19 +28,22 @@ void error(const char *msg)
 typedef struct _USR {
 	int clisockfd;		// socket file descriptor
 	char* username;     // client username
+	char* color;        // client color
 	struct _USR* next;	// for linked list queue
 } USR;
 
 USR *head = NULL;
 USR *tail = NULL;
 
-void add_tail(int newclisockfd, char* newname)
+void add_tail(int newclisockfd, char* newname, char* newcolor)
 {
 	if (head == NULL) {
 		head = (USR*) malloc(sizeof(USR));
 		head->clisockfd = newclisockfd;
 		head->username = (char*) malloc(strlen(newname) * sizeof(char));
 		strcpy(head->username, newname);
+		head->color = (char*) malloc(strlen(newcolor) * sizeof(char));
+		strcpy(head->color, newcolor);
 		head->next = NULL;
 		tail = head;
 	} else {
@@ -39,6 +51,8 @@ void add_tail(int newclisockfd, char* newname)
 		tail->next->clisockfd = newclisockfd;
 		tail->next->username = (char*) malloc(strlen(newname) * sizeof(char));
 		strcpy(tail->next->username, newname);
+		tail->next->color = (char*) malloc(strlen(newcolor) * sizeof(char));
+		strcpy(tail->next->color, newcolor);
 		tail->next->next = NULL;
 		tail = tail->next;
 	}
@@ -101,8 +115,9 @@ void broadcast(int fromfd,  char* message)
 	socklen_t clen = sizeof(cliaddr);
 	if (getpeername(fromfd, (struct sockaddr*)&cliaddr, &clen) < 0) error("ERROR Unknown sender!");
 
-	// find the username associated with the sender
+	// find the username and color associated with the sender
 	char* username;
+	char* color;
 	int userfound = 0;
 	USR* cur = head;
 	while (cur != NULL) {
@@ -110,6 +125,7 @@ void broadcast(int fromfd,  char* message)
 		if (cur->clisockfd == fromfd) {
 			// set username if found
 			username = cur->username;
+			color = cur->color;
 			userfound = 1;
 		}
 		cur = cur->next;
@@ -126,7 +142,7 @@ void broadcast(int fromfd,  char* message)
 			char buffer[512];
 
 			// prepare message
-			sprintf(buffer, "%s [%s]:%s", username, inet_ntoa(cliaddr.sin_addr), message);
+			sprintf(buffer, "%s%s [%s]:%s" RESET, color, username, inet_ntoa(cliaddr.sin_addr), message);
 			int nmsg = strlen(buffer);
 
 			// send!
@@ -141,6 +157,7 @@ void broadcast(int fromfd,  char* message)
 typedef struct _ThreadArgs {
 	int clisockfd;
 	char* username;
+	char* color;
 } ThreadArgs;
 
 void* thread_main(void* args)
@@ -184,6 +201,18 @@ void* thread_main(void* args)
 
 int main(int argc, char *argv[])
 {
+	// Create char* array of all possible color choices
+	char* colorcodes[] = {
+		KRED,
+		KGRN,
+		KYEL,
+		KBLU,
+		KMAG,
+		KCYN,
+		KWHT,
+	};
+	int colorchoice = 0;
+
 	int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sockfd < 0) error("ERROR opening socket");
 
@@ -220,7 +249,8 @@ int main(int argc, char *argv[])
 			error("ERROR recv() failed");
 		}
 		// add this new client to the client list
-		add_tail(newsockfd, username);
+		add_tail(newsockfd, username, colorcodes[colorchoice % 7]);
+		colorchoice++;
 
 		// print the new list of clients now that another has been added
 		print_list();
