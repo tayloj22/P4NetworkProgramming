@@ -20,6 +20,7 @@
 #define KCYN "\x1b[36m"
 #define KWHT "\x1B[37m"
 
+
 // LUKE
 #define CHAT_ROOM_NUM 3
 #define CLIENTS_PER_ROOM 6
@@ -204,6 +205,7 @@ int create_new_chatroom()
 	// Return -1 if the room is full.
 int join_chatroom(int room)
 {
+	if (room > CHAT_ROOM_NUM-1 || room < 0) return -1;
 	if (chatroom[room] < CLIENTS_PER_ROOM) {
 		chatroom[room]++;
 		return room;
@@ -415,7 +417,16 @@ int main(int argc, char *argv[])
 		KCYN,
 		KWHT,
 	};
-	int colorchoice = 0;
+	// Create array of which colors have been used
+	int colorsused[] = {
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+	};
 
 	int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sockfd < 0) error("ERROR opening socket");
@@ -431,8 +442,8 @@ int main(int argc, char *argv[])
 			(struct sockaddr*) &serv_addr, slen);
 	if (status < 0) error("ERROR on binding");
 
-	// maximum number of connections = 5
-	listen(sockfd, 5);
+	// maximum number of connections = 7
+	listen(sockfd, 7);
 
 	while(1) {
 		struct sockaddr_in cli_addr;
@@ -452,6 +463,13 @@ int main(int argc, char *argv[])
 			error("ERROR recv() failed");
 		}
 
+		// Select a random color that has not been used yet
+		int colorchoice;
+		do {
+			colorchoice = rand() % 7;	
+		} while (colorsused[colorchoice] == 1);
+		colorsused[colorchoice] = 1;
+
 		// prepare ThreadArgs structure to pass client socket
 		ThreadArgs* args = (ThreadArgs*) malloc(sizeof(ThreadArgs));
 		if (args == NULL) error("ERROR creating thread argument");
@@ -468,8 +486,7 @@ int main(int argc, char *argv[])
 		args->chat_status = chat_status;
 		
 		// Add to the tail of list and print.
-		add_tail(newsockfd, username, colorcodes[colorchoice % 7], chat_status);
-		colorchoice++;
+		add_tail(newsockfd, username, colorcodes[colorchoice], chat_status);
 		print_list();
 
 		pthread_t tid;
