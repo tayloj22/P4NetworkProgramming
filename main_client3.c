@@ -11,6 +11,7 @@
 #include <ctype.h>
 
 #define PORT_NUM 1004
+#define CHAT_ROOM_NUM 5
 
 void error(const char *msg)
 {
@@ -21,6 +22,35 @@ void error(const char *msg)
 typedef struct _ThreadArgs {
 	int clisockfd;
 } ThreadArgs;
+
+// LUKE
+// When user enters 'new' for the third command line
+	// arguments, this function will work in tandum with
+	// main_server.listen_for_chat room to join a new chat room
+	// and print whether the join was successful or not.
+void request_new_room(int sockfd) 
+{
+	// Send the message requesting a new room.
+		// Will simply send one char: 'n'.
+	char buffer[1];
+	memset(buffer, 0, 1);
+	buffer[0] = 'n';
+	int n = send(sockfd, buffer, strlen(buffer), 0);
+	if (n < 0) error("ERROR writing to socket");
+
+	// Receieve the chat room number back or an'F' for failure.
+	memset(buffer, 0, 1);
+	n = recv(sockfd, buffer, 512, 0);
+	if (n < 0) error("ERROR recv() failed");
+	
+	// Print the result of operation.
+	printf("-------------------------------------------------\n");
+	if (buffer[0] != 'F')
+		printf("You have been assigned the chat room number %s\n", buffer);
+	else
+		printf("That chat room was full. Failure.\n");
+	printf("-------------------------------------------------\n");	
+}
 
 // LUKE
 // When user enters a room number for the third command line
@@ -60,62 +90,53 @@ void join_particular_room(int sockfd, int room_number)
 	// broadcast procedures. 
 void retrieve_chat_rooms(int sockfd) 
 {
-	// Print the options from server.
-	printf("-------------------------------------------\n");
-	printf("Server says the following rooms are available.\n");
-	// FIXME: List the current chat rooms from server.
-	printf("-------------------------------------------\n");
-	
-	// Print and get the options for user selection.
-	printf("Enter 's' to NOT use a chatroom and use the standard");
-	printf(" broadcast procedures. Else, enter the room number.\n");
-	// FIXME: Get user input. Either an 's' or a chat number.
 	char buffer[1];
-	memset(buffer, 0, 1);
-	
-	// Simulations for testing purposes.
-	//buffer[0] = '1';		// Join chat room 1
-	buffer[0] = 's';		// Perform standard broadcasting
+	int LEN = CHAT_ROOM_NUM * 10 + 1;
+	char options[LEN];
+	int n;
 
-	// If user entered an 's', we send over the 's' to indicate standard
-		// broadcast procedures.
+	// Send the 'l' to tell server to send the list.
+	memset(buffer, 0, 1);
+	buffer[0] = 'l';
+	n = send(sockfd, buffer, strlen(buffer), 0);
+	if (n < 0) error("ERROR writing to socket");
+	
+	// Get and the options from server.
+	memset(options, 0, LEN);
+	n = recv(sockfd, options, LEN, 0);
+	if (n < 0) error("ERROR on recieving");
+	
+	// Print the options from server, and the user's choices.
+	printf("-------------------------------------------\n");
+	printf("This is the chatroom status (max six clients per room).\n");
+	printf("Format is [Room Number] : [Num Clients]\n");
+	printf("%s", options);
+	printf("-------------------------------------------\n");
+	printf("Enter a chat number to join it.\n");
+	printf("Enter 'n' to create a new room.\n");
+	printf("Enter 's' for standard broadcast to all clients.\n");
+	
+	// Get user input.
+	memset(buffer, 0, 1);
+	scanf("%c", &buffer[0]);		// Get input char.
+	getchar();						// Consume the '\n'.
+
+	// If user entered an 's', we send over the 's' to 
+		// indicate standard broadcast procedures.
 	if (buffer[0] == 's') {
-		int n = send(sockfd, buffer, strlen(buffer), 0);
+		n = send(sockfd, buffer, strlen(buffer), 0);
 		if (n < 0) error("ERROR writing to socket");
+		printf("Selected standard broadcast to all clients.\n");
 	}
-	// Otherwise the user entered a number and we request to join that room.
-	else {
+	// If the user entered an 'n', we request a new room.
+	else if (buffer[0] == 'n') {
+		request_new_room(sockfd);
+	}
+	// If the user entered an int, we request to join that room number.
+	else if (isdigit(buffer[0]) != 0){
 		join_particular_room(sockfd, atoi(&buffer[0]));
 	}
-}
-
-// LUKE
-// When user enters 'new' for the third command line
-	// arguments, this function will work in tandum with
-	// main_server.listen_for_chat room to join a new chat room
-	// and print whether the join was successful or not.
-void request_new_room(int sockfd) 
-{
-	// Send the message requesting a new room.
-		// Will simply send one char: 'n'.
-	char buffer[1];
-	memset(buffer, 0, 1);
-	buffer[0] = 'n';
-	int n = send(sockfd, buffer, strlen(buffer), 0);
-	if (n < 0) error("ERROR writing to socket");
-
-	// Receieve the chat room number back or an'F' for failure.
-	memset(buffer, 0, 1);
-	n = recv(sockfd, buffer, 512, 0);
-	if (n < 0) error("ERROR recv() failed");
-	
-	// Print the result of operation.
-	printf("-------------------------------------------\n");
-	if (buffer[0] != 'F')
-		printf("You have been assigned the chat room number %s\n", buffer);
-	else
-		printf("That chat room was full. Failure.\n");
-	printf("-------------------------------------------\n");	
+	else { printf("Invalid Input\n"); }
 }
 
 // LUKE
@@ -148,8 +169,8 @@ void address_chat_room(char *arg3, int sockfd)
 
 void* thread_main_recv(void* args)
 {
-	pthread_detach(pthread_self());
-
+	//pthread_detach(pthread_self());
+	//printf("Oficially in receiving message mode.\n");
 	int sockfd = ((ThreadArgs*) args)->clisockfd;
 	free(args);
 
@@ -162,11 +183,12 @@ void* thread_main_recv(void* args)
 		memset(buffer, 0, 512);
 		n = recv(sockfd, buffer, 512, 0);
 		if (n < 0) error("ERROR recv() failed");
-
+		
+		// LUKE2
 		printf("\n%s\n", buffer);
-		// LUKE
 		printf("\nYou may now enter a message to the other users. ");
-		printf("Sending a blank message will quit.\n");
+		printf("Blank message will quit.\n");
+	
 	} while (n > 0);
 
 	return NULL;
@@ -174,7 +196,7 @@ void* thread_main_recv(void* args)
 
 void* thread_main_send(void* args)
 {
-	pthread_detach(pthread_self());
+	//pthread_detach(pthread_self());
 
 	int sockfd = ((ThreadArgs*) args)->clisockfd;
 	free(args);
@@ -268,6 +290,8 @@ int main(int argc, char *argv[])
 	// parent will wait for sender to finish 
 		// user stop sending message and disconnect from server)
 	pthread_join(tid1, NULL);
+	// LUKE
+	//pthread_join(tid2, NULL);
 
 	close(sockfd);
 
