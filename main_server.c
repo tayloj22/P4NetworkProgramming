@@ -428,6 +428,10 @@ int main(int argc, char *argv[])
 		0,
 	};
 
+	// Seed the random numbers in order to get proper results from
+	// calls to rand()
+	srand(time(NULL));
+
 	int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 	if (sockfd < 0) error("ERROR opening socket");
 
