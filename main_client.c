@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 #include <netdb.h> 
 #include <pthread.h>
+#include <ctype.h>
 
 #define PORT_NUM 1004
 
@@ -20,6 +21,130 @@ void error(const char *msg)
 typedef struct _ThreadArgs {
 	int clisockfd;
 } ThreadArgs;
+
+// LUKE
+// When user enters a room number for the third command line
+	// arguments, this function will work in tandum with
+	// main_server.listen_for_chat room to join the chat room
+	// and print whether the join was successful or not.
+void join_particular_room(int sockfd, int room_number) 
+{
+	// Send the message requesting to join a particular room.
+		// Will simply send one char: the room number.
+	char buffer[1];
+	memset(buffer, 0, 1);
+	buffer[0] = room_number + '0';
+	int n = send(sockfd, buffer, strlen(buffer), 0);
+	if (n < 0) error("ERROR writing to socket");
+	
+	// Recieve the room number back or a 'F' for failure.
+	memset(buffer, 0, 1);
+	n = recv(sockfd, buffer, 512, 0);
+	if (n < 0) error("ERROR recv() failed");
+	
+	// Print the result of join operation.
+	printf("-------------------------------------------\n");
+	if (buffer[0] != 'F') 
+		printf("You have been assigned the chat room number %s\n", buffer);
+	else 
+		printf("That chat room was full. Failure.\n");
+	printf("-------------------------------------------\n");	
+}
+
+// LUKE
+// When user does not enter anything for the third command line
+	// arguments, this function will work in tandum with
+	// main_server.listen_for_chat room to retrieve the available
+	// chat rooms. It will then ask the user which room it wants to
+	// join, or if the user would like to simply perform standard 
+	// broadcast procedures. 
+void retrieve_chat_rooms(int sockfd) 
+{
+	// Print the options from server.
+	printf("-------------------------------------------\n");
+	printf("Server says the following rooms are available.\n");
+	// FIXME: List the current chat rooms from server.
+	printf("-------------------------------------------\n");
+	
+	// Print and get the options for user selection.
+	printf("Enter 's' to NOT use a chatroom and use the standard");
+	printf(" broadcast procedures. Else, enter the room number.\n");
+	// FIXME: Get user input. Either an 's' or a chat number.
+	char buffer[1];
+	memset(buffer, 0, 1);
+	
+	// Simulations for testing purposes.
+	//buffer[0] = '1';		// Join chat room 1
+	buffer[0] = 's';		// Perform standard broadcasting
+
+	// If user entered an 's', we send over the 's' to indicate standard
+		// broadcast procedures.
+	if (buffer[0] == 's') {
+		int n = send(sockfd, buffer, strlen(buffer), 0);
+		if (n < 0) error("ERROR writing to socket");
+	}
+	// Otherwise the user entered a number and we request to join that room.
+	else {
+		join_particular_room(sockfd, atoi(&buffer[0]));
+	}
+}
+
+// LUKE
+// When user enters 'new' for the third command line
+	// arguments, this function will work in tandum with
+	// main_server.listen_for_chat room to join a new chat room
+	// and print whether the join was successful or not.
+void request_new_room(int sockfd) 
+{
+	// Send the message requesting a new room.
+		// Will simply send one char: 'n'.
+	char buffer[1];
+	memset(buffer, 0, 1);
+	buffer[0] = 'n';
+	int n = send(sockfd, buffer, strlen(buffer), 0);
+	if (n < 0) error("ERROR writing to socket");
+
+	// Receieve the chat room number back or an'F' for failure.
+	memset(buffer, 0, 1);
+	n = recv(sockfd, buffer, 512, 0);
+	if (n < 0) error("ERROR recv() failed");
+	
+	// Print the result of operation.
+	printf("-------------------------------------------\n");
+	if (buffer[0] != 'F')
+		printf("You have been assigned the chat room number %s\n", buffer);
+	else
+		printf("That chat room was full. Failure.\n");
+	printf("-------------------------------------------\n");	
+}
+
+// LUKE
+// Main function to make intelligent decisions based upon the third
+	// command line arguments. There are three paths to take:
+		// 1. User enters no third argument: retrieve_chat_room
+		// 2. User enters 'new': request_new_room
+		// 3. User enters [int]: join_particular_room
+void address_chat_room(char *arg3, int sockfd) 
+{
+	sleep(1);	// Wait for the server to catch up to client.
+
+	// Call worker functions based upon contents are third arg.
+	
+	if (arg3 == NULL) { // No third arg.
+		retrieve_chat_rooms(sockfd);
+	}
+	else if (strcmp(arg3, "new") == 0) { // 'new' is third arg.
+		request_new_room(sockfd);
+	}
+	else { // Third arg is numeric.
+		for (int i = 0; i < strlen(arg3); i++) {
+			if (isdigit(arg3[i]) == 0) { 
+				error("Invalid third argument");	
+			}
+		}
+		join_particular_room(sockfd, atoi(arg3));
+	}
+}
 
 void* thread_main_recv(void* args)
 {
@@ -39,6 +164,9 @@ void* thread_main_recv(void* args)
 		if (n < 0) error("ERROR recv() failed");
 
 		printf("\n%s\n", buffer);
+		// LUKE
+		printf("\nYou may now enter a message to the other users. ");
+		printf("Sending a blank message will quit.\n");
 	} while (n > 0);
 
 	return NULL;
@@ -114,10 +242,12 @@ int main(int argc, char *argv[])
 
 	// Send the username to the server to be stored
 	int n = send(sockfd, username, strlen(username), 0);
-	if (n < 0) {
-		error("ERROR writing to socket");
-	}
+	if (n < 0) { error("ERROR writing to socket"); }
 
+	// LUKE
+	// Complex function to address all chat room needs.
+		// Please read function documentation above.
+	address_chat_room(argv[2], sockfd);
 
 	// Split into two threads
 	pthread_t tid1;
@@ -135,7 +265,8 @@ int main(int argc, char *argv[])
 	args->clisockfd = sockfd;
 	pthread_create(&tid2, NULL, thread_main_recv, (void*) args);
 
-	// parent will wait for sender to finish (= user stop sending message and disconnect from server)
+	// parent will wait for sender to finish 
+		// user stop sending message and disconnect from server)
 	pthread_join(tid1, NULL);
 
 	close(sockfd);
